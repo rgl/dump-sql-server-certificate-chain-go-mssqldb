@@ -589,6 +589,51 @@ func TestDriverParams(t *testing.T) {
 	}
 }
 
+func TestOutputParam(t *testing.T) {
+	sqltextcreate := `
+CREATE PROCEDURE abassign
+   @aid INT,
+   @bid INT OUTPUT
+AS
+BEGIN
+   SELECT @bid = @aid
+END;
+`
+	sqltextdrop := `DROP PROCEDURE abassign;`
+
+	checkConnStr(t)
+	SetLogger(testLogger{t})
+
+	db, err := sql.Open("sqlserver", makeConnStr())
+	if err != nil {
+		t.Fatalf("failed to open driver sqlserver")
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db.ExecContext(ctx, sqltextdrop)
+	_, err = db.ExecContext(ctx, sqltextcreate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bout int64
+	// _, err = db.ExecContext(ctx, `exec abassign @aid, @bid OUTPUT;`,
+	_, err = db.ExecContext(ctx, `abassign`,
+		sql.Named("aid", 5),
+		sql.Named("bid", sql.Out{Value: &bout}),
+	)
+	defer db.ExecContext(ctx, sqltextdrop)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if bout != 5 {
+		t.Errorf("expected 5, got %d", bout)
+	}
+}
+
 type connInterrupt struct {
 	net.Conn
 
