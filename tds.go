@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"io"
 	"io/ioutil"
 	"net"
@@ -19,6 +18,7 @@ import (
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 func parseInstances(msg []byte) map[string]map[string]string {
@@ -1265,6 +1265,18 @@ initiate_connection:
 			config.InsecureSkipVerify = true
 		}
 		config.ServerName = p.hostInCertificate
+		config.InsecureSkipVerify = true
+		config.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			for i, crt := range rawCerts {
+				path := fmt.Sprintf("%s-%d.der", config.ServerName, i)
+				log.Printf("Saving %s certificate chain link #%d to %s...", config.ServerName, i, path)
+				ioutil.WriteFile(
+					path,
+					crt,
+					0644)
+			}
+			return nil
+		}
 		outbuf.transport = conn
 		toconn.buf = outbuf
 		tlsConn := tls.Client(toconn, &config)
